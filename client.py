@@ -2,12 +2,19 @@ import requests
 
 # --- CONFIGURACIÓN ---
 BASE_URL = "http://127.0.0.1:8000"
-# Esta variable guardará las credenciales solo para la sesión actual
+# Esta variable guardará las credenciales VALIDADAS solo para la sesión actual
 SESION_AUTH = None
 
-### NUEVA FUNCIÓN: Se encarga de pedir y guardar las credenciales ###
+### FUNCIÓN DE AUTENTICACIÓN MEJORADA ###
 def gestionar_autenticacion():
-    """Verifica si ya hay credenciales en la sesión. Si no, las solicita."""
+    """
+    Asegura que existan credenciales válidas en la sesión.
+    1. Si ya hay credenciales en SESION_AUTH, las devuelve.
+    2. Si no, las solicita al usuario.
+    3. INMEDIATAMENTE después de solicitarlas, intenta validarlas contra el endpoint /auth/test.
+    4. Si la validación es exitosa, guarda las credenciales y las devuelve.
+    5. Si la validación falla, muestra un error y devuelve None.
+    """
     global SESION_AUTH
     if SESION_AUTH:
         return SESION_AUTH
@@ -15,41 +22,73 @@ def gestionar_autenticacion():
     print("\n--- Se requiere autenticación ---")
     username = input("Usuario: ")
     if not username:
+        print("Autenticación cancelada.")
         return None
     password = input("Contraseña: ")
     
-    SESION_AUTH = (username.strip(), password.strip())
-    return SESION_AUTH
+    # Preparamos las credenciales para la prueba
+    credenciales_nuevas = (username.strip(), password.strip())
+    
+    # Hacemos la llamada de prueba para validar las credenciales
+    print("Verificando credenciales...")
+    try:
+        response = requests.get(f"{BASE_URL}/auth/test", auth=credenciales_nuevas, timeout=5)
+        
+        if response.status_code == 200:
+            print("¡Autenticación exitosa!")
+            SESION_AUTH = credenciales_nuevas # Guardamos las credenciales válidas
+            return SESION_AUTH
+        elif response.status_code == 401:
+            print("\nError: Autenticación fallida. Revisa las credenciales.")
+            return None
+        else:
+            # Otro tipo de error (ej: 404 si el endpoint no existe, 500 en el servidor)
+            print(f"\nError inesperado durante la autenticación ({response.status_code}).")
+            return None
+            
+    except requests.exceptions.RequestException as e:
+        print(f"\nError de conexión con el servidor: {e}")
+        return None
 
 # --- FUNCIONES GET (No requieren autenticación) ---
+# (Estas funciones no cambian)
 def ver_todas():
-    response = requests.get(f"{BASE_URL}/movies")
-    if response.ok:
-        print("\n--- PRIMERAS 10 PELÍCULAS ---")
-        for movie in response.json()[:10]:
-            print(f"- {movie['title']} ({movie['year']})")
-    else:
-        print(f"Error al obtener películas ({response.status_code}).")
+    try:
+        response = requests.get(f"{BASE_URL}/movies")
+        if response.ok:
+            print("\n--- PRIMERAS 10 PELÍCULAS ---")
+            for movie in response.json()[:10]:
+                print(f"- {movie['title']} ({movie['year']})")
+        else:
+            print(f"Error al obtener películas ({response.status_code}).")
+    except requests.exceptions.RequestException as e:
+        print(f"\nError de conexión con el servidor: {e}")
 
 def buscar_por_titulo():
     title = input("Ingrese el título de la película: ")
-    response = requests.get(f"{BASE_URL}/movies/{title}")
-    if response.ok:
-        movie = response.json()
-        print(f"\n--- {movie['title']} ({movie['year']}) ---")
-        print(f"Géneros: {', '.join(movie['genres'])}")
-        print(f"Actores: {', '.join(movie['cast'])}")
-        print(f"Resumen: {movie.get('extract', 'No disponible')}")
-    else:
-        print("Película no encontrada.")
+    try:
+        response = requests.get(f"{BASE_URL}/movies/{title}")
+        if response.ok:
+            movie = response.json()
+            print(f"\n--- {movie['title']} ({movie['year']}) ---")
+            print(f"Géneros: {', '.join(movie['genres'])}")
+            print(f"Actores: {', '.join(movie['cast'])}")
+            print(f"Resumen: {movie.get('extract', 'No disponible')}")
+        else:
+            print("Película no encontrada.")
+    except requests.exceptions.RequestException as e:
+        print(f"\nError de conexión con el servidor: {e}")
 
-# --- FUNCIONES POST, PUT, DELETE (Requieren autenticación) ---
+
+# --- FUNCIONES POST, PUT, DELETE (Ahora más limpias) ---
 def agregar_pelicula():
+    # 1. Validar autenticación ANTES de pedir datos
     auth_credenciales = gestionar_autenticacion()
     if not auth_credenciales:
-        print("Operación cancelada. No se proporcionaron credenciales.")
+        # El mensaje de error ya se mostró dentro de gestionar_autenticacion()
         return
 
+    # 2. Si la autenticación es correcta, AHORA SÍ pedimos los datos
     print("\n--- Ingrese los datos de la nueva película ---")
     title = input("Título: ")
     try:
@@ -66,23 +105,27 @@ def agregar_pelicula():
     
     data = {"title": title.strip(), "year": year, "cast": [c.strip() for c in cast], "genres": [g.strip() for g in genres]}
     
-    response = requests.post(f"{BASE_URL}/movies", json=data, auth=auth_credenciales)
+    try:
+        response = requests.post(f"{BASE_URL}/movies", json=data, auth=auth_credenciales)
 
-    if response.status_code == 201:
-        print("Película agregada con éxito.")
-    elif response.status_code == 401:
-        print("Error: Autenticación fallida. Revisa las credenciales.")
-        global SESION_AUTH
-        SESION_AUTH = None # Borra las credenciales incorrectas
-    else:
-        print(f"Error ({response.status_code}): {response.json()['detail']}")
+        if response.status_code == 201:
+            print("Película agregada con éxito.")
+        else:
+            # Aunque ya validamos, algo pudo cambiar (ej: permisos revocados). Es bueno mantener esto.
+            print(f"Error ({response.status_code}): {response.json()['detail']}")
+            if response.status_code == 401:
+                global SESION_AUTH
+                SESION_AUTH = None # Borramos las credenciales que ahora son inválidas
+    except requests.exceptions.RequestException as e:
+        print(f"\nError de conexión con el servidor: {e}")
 
 def actualizar_pelicula_parcial():
+    # 1. Validar autenticación ANTES de pedir datos
     auth_credenciales = gestionar_autenticacion()
     if not auth_credenciales:
-        print("Operación cancelada. No se proporcionaron credenciales.")
         return
 
+    # 2. Si la autenticación es correcta, AHORA SÍ pedimos los datos
     title_a_actualizar = input("Ingrese el título de la película que desea actualizar: ")
     print("\n--- Ingrese los campos a modificar (deje en blanco para no cambiar) ---")
     update_data = {}
@@ -104,43 +147,48 @@ def actualizar_pelicula_parcial():
         print("No se ingresaron datos para actualizar. Operación cancelada.")
         return
 
-    response = requests.put(f"{BASE_URL}/movies/{title_a_actualizar}/partial", json=update_data, auth=auth_credenciales)
+    try:
+        response = requests.put(f"{BASE_URL}/movies/{title_a_actualizar}/partial", json=update_data, auth=auth_credenciales)
 
-    if response.ok:
-        print("Película actualizada con éxito.")
-    elif response.status_code == 401:
-        print("Error: Autenticación fallida. Revisa las credenciales.")
-        global SESION_AUTH
-        SESION_AUTH = None # Borra las credenciales incorrectas
-    else:
-        print(f"Error ({response.status_code}): {response.json()['detail']}")
+        if response.ok:
+            print("Película actualizada con éxito.")
+        else:
+            print(f"Error ({response.status_code}): {response.json()['detail']}")
+            if response.status_code == 401:
+                global SESION_AUTH
+                SESION_AUTH = None 
+    except requests.exceptions.RequestException as e:
+        print(f"\nError de conexión con el servidor: {e}")
+
 
 def borrar_pelicula():
+    # 1. Validar autenticación ANTES de pedir datos
     auth_credenciales = gestionar_autenticacion()
     if not auth_credenciales:
-        print("Operación cancelada. No se proporcionaron credenciales.")
         return
         
+    # 2. Si la autenticación es correcta, AHORA SÍ pedimos los datos
     title = input("Ingrese el título de la película a borrar: ")
     confirm = input(f"¿Está seguro de que desea borrar '{title}'? (s/n): ")
     if confirm.lower() != 's':
         print("Operación cancelada.")
         return
 
-    response = requests.delete(f"{BASE_URL}/movies/{title}", auth=auth_credenciales)
-    
-    if response.ok:
-        print(response.json()["message"])
-    elif response.status_code == 401:
-        print("Error: Autenticación fallida. Revisa las credenciales.")
-        global SESION_AUTH
-        SESION_AUTH = None # Borra las credenciales incorrectas
-    else:
-        print(f"Error ({response.status_code}): {response.json()['detail']}")
+    try:
+        response = requests.delete(f"{BASE_URL}/movies/{title}", auth=auth_credenciales)
+        
+        if response.ok:
+            print(response.json()["message"])
+        else:
+            print(f"Error ({response.status_code}): {response.json()['detail']}")
+            if response.status_code == 401:
+                global SESION_AUTH
+                SESION_AUTH = None
+    except requests.exceptions.RequestException as e:
+        print(f"\nError de conexión con el servidor: {e}")
 
-# --- MENÚ PRINCIPAL ---
+# --- MENÚ PRINCIPAL (sin cambios) ---
 def menu():
-    # He eliminado las opciones 3 y 4 del menú ya que no estaban en tu último código
     while True:
         print("\n--- CLIENTE API DE PELÍCULAS ---")
         print("1. Ver primeras películas")
