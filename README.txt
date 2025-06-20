@@ -4,7 +4,7 @@ To run the program locally, it is recommended to create a virtual environment in
 
 Then, activate it with the correct command for your terminal:
 
-- **Bash / Git Bash:** `source .venv/Scripts/activate`
+- **Bash / Git Bash:** `source .venv/bin/activate`
 - **PowerShell:** `.venv\Scripts\Activate.ps1`
 
 Once you are inside the virtual environment, use the following command to install all the required packages:

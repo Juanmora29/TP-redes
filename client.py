@@ -1,20 +1,50 @@
 import requests
+import sys
 
 # --- CONFIGURACIÓN ---
-BASE_URL = "http://127.0.0.1:8000"
-# Esta variable guardará las credenciales VALIDADAS solo para la sesión actual
-SESION_AUTH = None
+# ▼▼▼ Ya no es obligatorio editar esta línea ▼▼▼
+# El script ahora te preguntará la IP si no la encuentra aquí.
+IP_DEL_SERVIDOR = "PON_AQUI_LA_IP_DE_TU_SERVIDOR"
+# ▲▲▲ Ya no es obligatorio editar esta línea ▲▲▲
 
-### FUNCIÓN DE AUTENTICACIÓN MEJORADA ###
+# <<< CAMBIO: Estas variables se definirán dinámicamente al inicio >>>
+BASE_URL = None
+SESION_AUTH = None # Guarda credenciales validadas
+
+# <<< NUEVA FUNCIÓN para solicitar y configurar la IP del servidor >>>
+def configurar_servidor():
+    """
+    Verifica si la IP del servidor está configurada. Si no, la solicita al usuario
+    y establece la variable global BASE_URL.
+    """
+    global IP_DEL_SERVIDOR, BASE_URL
+
+    # Si la IP sigue siendo el valor por defecto, se la pedimos al usuario.
+    if IP_DEL_SERVIDOR == "PON_AQUI_LA_IP_DE_TU_SERVIDOR":
+        print("--- Configuración del Cliente ---")
+        nueva_ip = input("Por favor, ingresa la dirección IP del servidor: ").strip()
+        
+        # Si el usuario no ingresa nada, no podemos continuar.
+        if not nueva_ip:
+            print("\nError: No se ha proporcionado una dirección IP. El programa terminará.")
+            sys.exit(1)
+        
+        IP_DEL_SERVIDOR = nueva_ip
+
+    # Una vez que tenemos la IP (ya sea la pre-configurada o la recién ingresada),
+    # construimos la URL base para que el resto del programa la use.
+    BASE_URL = f"http://{IP_DEL_SERVIDOR}:8000"
+    print(f"\n✅ Servidor configurado para conectarse a: {BASE_URL}")
+    # Pequeña prueba de conexión para ver si el servidor está activo
+    try:
+        requests.get(BASE_URL, timeout=3)
+        print("✅ ¡Conexión con el servidor exitosa!")
+    except requests.exceptions.RequestException:
+        print("⚠️  AVISO: No se pudo establecer conexión inicial con el servidor.")
+        print("   Asegúrate de que la IP es correcta y el servidor está en ejecución.")
+
+
 def gestionar_autenticacion():
-    """
-    Asegura que existan credenciales válidas en la sesión.
-    1. Si ya hay credenciales en SESION_AUTH, las devuelve.
-    2. Si no, las solicita al usuario.
-    3. INMEDIATAMENTE después de solicitarlas, intenta validarlas contra el endpoint /auth/test.
-    4. Si la validación es exitosa, guarda las credenciales y las devuelve.
-    5. Si la validación falla, muestra un error y devuelve None.
-    """
     global SESION_AUTH
     if SESION_AUTH:
         return SESION_AUTH
@@ -26,23 +56,20 @@ def gestionar_autenticacion():
         return None
     password = input("Contraseña: ")
     
-    # Preparamos las credenciales para la prueba
     credenciales_nuevas = (username.strip(), password.strip())
     
-    # Hacemos la llamada de prueba para validar las credenciales
     print("Verificando credenciales...")
     try:
         response = requests.get(f"{BASE_URL}/auth/test", auth=credenciales_nuevas, timeout=5)
         
         if response.status_code == 200:
             print("¡Autenticación exitosa!")
-            SESION_AUTH = credenciales_nuevas # Guardamos las credenciales válidas
+            SESION_AUTH = credenciales_nuevas
             return SESION_AUTH
         elif response.status_code == 401:
             print("\nError: Autenticación fallida. Revisa las credenciales.")
             return None
         else:
-            # Otro tipo de error (ej: 404 si el endpoint no existe, 500 en el servidor)
             print(f"\nError inesperado durante la autenticación ({response.status_code}).")
             return None
             
@@ -50,8 +77,6 @@ def gestionar_autenticacion():
         print(f"\nError de conexión con el servidor: {e}")
         return None
 
-# --- FUNCIONES GET (No requieren autenticación) ---
-# (Estas funciones no cambian)
 def ver_todas():
     try:
         response = requests.get(f"{BASE_URL}/movies")
@@ -79,16 +104,11 @@ def buscar_por_titulo():
     except requests.exceptions.RequestException as e:
         print(f"\nError de conexión con el servidor: {e}")
 
-
-# --- FUNCIONES POST, PUT, DELETE (Ahora más limpias) ---
 def agregar_pelicula():
-    # 1. Validar autenticación ANTES de pedir datos
     auth_credenciales = gestionar_autenticacion()
     if not auth_credenciales:
-        # El mensaje de error ya se mostró dentro de gestionar_autenticacion()
         return
 
-    # 2. Si la autenticación es correcta, AHORA SÍ pedimos los datos
     print("\n--- Ingrese los datos de la nueva película ---")
     title = input("Título: ")
     try:
@@ -107,32 +127,28 @@ def agregar_pelicula():
     
     try:
         response = requests.post(f"{BASE_URL}/movies", json=data, auth=auth_credenciales)
-
         if response.status_code == 201:
             print("Película agregada con éxito.")
         else:
-            # Aunque ya validamos, algo pudo cambiar (ej: permisos revocados). Es bueno mantener esto.
             print(f"Error ({response.status_code}): {response.json()['detail']}")
             if response.status_code == 401:
                 global SESION_AUTH
-                SESION_AUTH = None # Borramos las credenciales que ahora son inválidas
+                SESION_AUTH = None
     except requests.exceptions.RequestException as e:
         print(f"\nError de conexión con el servidor: {e}")
 
 def actualizar_pelicula_parcial():
-    # 1. Validar autenticación ANTES de pedir datos
     auth_credenciales = gestionar_autenticacion()
     if not auth_credenciales:
         return
 
-    # 2. Si la autenticación es correcta, AHORA SÍ pedimos los datos
-    title_a_actualizar = input("Ingrese el título de la película que desea actualizar: ")
+    title_a_actualizar = input("Ingrese el título de la película a actualizar: ")
     print("\n--- Ingrese los campos a modificar (deje en blanco para no cambiar) ---")
     update_data = {}
-    nuevo_titulo = input(f"Nuevo Título: ")
+    nuevo_titulo = input("Nuevo Título: ")
     if nuevo_titulo:
         update_data["title"] = nuevo_titulo.strip()
-    nuevo_anio = input(f"Nuevo Año: ")
+    nuevo_anio = input("Nuevo Año: ")
     if nuevo_anio:
         try:
             year_val = int(nuevo_anio)
@@ -149,25 +165,21 @@ def actualizar_pelicula_parcial():
 
     try:
         response = requests.put(f"{BASE_URL}/movies/{title_a_actualizar}/partial", json=update_data, auth=auth_credenciales)
-
         if response.ok:
             print("Película actualizada con éxito.")
         else:
             print(f"Error ({response.status_code}): {response.json()['detail']}")
             if response.status_code == 401:
                 global SESION_AUTH
-                SESION_AUTH = None 
+                SESION_AUTH = None
     except requests.exceptions.RequestException as e:
         print(f"\nError de conexión con el servidor: {e}")
 
-
 def borrar_pelicula():
-    # 1. Validar autenticación ANTES de pedir datos
     auth_credenciales = gestionar_autenticacion()
     if not auth_credenciales:
         return
         
-    # 2. Si la autenticación es correcta, AHORA SÍ pedimos los datos
     title = input("Ingrese el título de la película a borrar: ")
     confirm = input(f"¿Está seguro de que desea borrar '{title}'? (s/n): ")
     if confirm.lower() != 's':
@@ -176,7 +188,6 @@ def borrar_pelicula():
 
     try:
         response = requests.delete(f"{BASE_URL}/movies/{title}", auth=auth_credenciales)
-        
         if response.ok:
             print(response.json()["message"])
         else:
@@ -187,8 +198,10 @@ def borrar_pelicula():
     except requests.exceptions.RequestException as e:
         print(f"\nError de conexión con el servidor: {e}")
 
-# --- MENÚ PRINCIPAL (sin cambios) ---
 def menu():
+    # <<< CAMBIO: El bloque de error se ha eliminado de aquí >>>
+    # La comprobación ahora se hace en la función configurar_servidor()
+        
     while True:
         print("\n--- CLIENTE API DE PELÍCULAS ---")
         print("1. Ver primeras películas")
@@ -209,4 +222,6 @@ def menu():
         else: print("Opción no válida.")
 
 if __name__ == "__main__":
+    # <<< CAMBIO: Primero configuramos el servidor y luego iniciamos el menú >>>
+    configurar_servidor()
     menu()
