@@ -17,6 +17,7 @@ DATA_FILE = "movies.json"
 REMOTE_URL = "https://raw.githubusercontent.com/prust/wikipedia-movie-data/master/movies.json"
 VENTANA_TIEMPO = timedelta(seconds=1)
 MAX_PETICIONES = 10
+USUARIOS_DB: Dict[str, str] = {"admin": "supersecret"}
 historial_peticiones: Dict[str, Deque[datetime]] = {}
 movies_db: List[Dict] = []
 
@@ -78,7 +79,7 @@ class Movie(BaseModel):
 class MovieUpdate(BaseModel):
     title: Optional[str] = Field(None, min_length=1); year: Optional[int] = Field(None, ge=0); cast: Optional[List[str]] = None; genres: Optional[List[str]] = None
 security = HTTPBasic()
-USUARIOS_DB: Dict[str, str] = {"admin": "supersecret"}
+
 def verificar_credenciales(credentials: HTTPBasicCredentials = Depends(security)) -> str:
     if credentials.username not in USUARIOS_DB: raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Credenciales incorrectas", headers={"WWW-Authenticate": "Basic"})
     password_correcta = USUARIOS_DB.get(credentials.username)
