@@ -43,7 +43,7 @@ def gestionar_autenticacion():
     except requests.exceptions.RequestException as e:
         print(f"\nError de conexión con el servidor: {e}"); return None
 
-# ▼▼▼ ¡FUNCIÓN MODIFICADA! ▼▼▼
+
 def ver_cantidad_peliculas():
     """
     Obtiene y muestra la cantidad total de películas del servidor.
@@ -59,7 +59,6 @@ def ver_cantidad_peliculas():
         print(f"\nError de conexión: {e}")
 
 def buscar_por_titulo():
-    # ... (código sin cambios)
     title = input("Ingrese el título de la película: ")
     try:
         response = requests.get(f"{BASE_URL}/movies/{title}")
@@ -73,7 +72,6 @@ def buscar_por_titulo():
     except requests.exceptions.RequestException as e: print(f"\nError de conexión: {e}")
 
 def buscar_por_anio():
-    # ... (código sin cambios)
     print("\n--- Buscar películas por año ---")
     year_str = input("Ingrese el año a buscar: ")
     if not year_str.strip(): print("Año no ingresado."); return
@@ -89,7 +87,7 @@ def buscar_por_anio():
         else: print(f"Error en la búsqueda ({response.status_code}).")
     except requests.exceptions.RequestException as e: print(f"\nError de conexión: {e}")
 
-# ... (El resto de funciones: agregar, actualizar, borrar no necesitan cambios) ...
+
 def agregar_pelicula():
     auth = gestionar_autenticacion()
     if not auth: return
@@ -145,11 +143,11 @@ def borrar_pelicula():
             if response.status_code == 401: global SESION_AUTH; SESION_AUTH = None
     except requests.exceptions.RequestException as e: print(f"\nError de conexión: {e}")
 
-# ▼▼▼ ¡MENÚ MODIFICADO! ▼▼▼
+
 def menu():
     while True:
         print("\n--- CLIENTE API DE PELÍCULAS ---")
-        print("1. Ver cantidad total de películas") # <--- Opción cambiada
+        print("1. Ver cantidad total de películas") 
         print("2. Buscar por título")
         print("3. Buscar por año")
         print("4. Agregar nueva película (auth)")

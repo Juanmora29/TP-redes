@@ -56,7 +56,6 @@ async def limitador_de_tasa(request: Request, call_next):
 def initialize_data():
     global movies_db
     if not os.path.exists(DATA_FILE):
-        # El mensaje de descarga sí es útil, lo mantenemos.
         print("Descargando JSON desde la web...") 
         try:
             response = requests.get(REMOTE_URL)
@@ -69,12 +68,6 @@ def initialize_data():
     with open(DATA_FILE, "r", encoding="utf-8") as f:
         movies_db = json.load(f)
     
-    # ▼▼▼ ¡CAMBIO AQUÍ! ▼▼▼
-    # Simplemente hemos eliminado la siguiente línea:
-    # print(f"✅ Datos cargados. {len(movies_db)} películas en memoria.")
-    # ▲▲▲ ¡FIN DEL CAMBIO! ▲▲▲
-
-
 def save_data():
     with open(DATA_FILE, "w", encoding="utf-8") as f:
         json.dump(movies_db, f, indent=2, ensure_ascii=False)
