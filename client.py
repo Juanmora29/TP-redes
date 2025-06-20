@@ -1,5 +1,3 @@
-# --- CÓDIGO FINAL DEL CLIENTE (SIN FUNCIÓN DE PRUEBA) ---
-
 import requests
 import sys
 
@@ -18,12 +16,14 @@ def configurar_servidor():
     BASE_URL = f"http://{IP_DEL_SERVIDOR}:8000"
     print(f"\n✅ Servidor configurado para conectarse a: {BASE_URL}")
     try:
-        requests.get(f"{BASE_URL}/movies", timeout=3)
+        # Intentamos conectar al nuevo endpoint de conteo
+        requests.get(f"{BASE_URL}/movies/count", timeout=3)
         print("✅ ¡Conexión con el servidor exitosa!")
     except requests.exceptions.RequestException:
-        print("⚠️  AVISO: No se pudo establecer conexión inicial con el servidor.")
+        print("⚠️  AVISO: No se pudo establecer conexión inicial con el servidor. Reinicie e intente de nuevo.")
 
 def gestionar_autenticacion():
+    # ... (código sin cambios)
     global SESION_AUTH
     if SESION_AUTH: return SESION_AUTH
     print("\n--- Se requiere autenticación ---")
@@ -43,16 +43,23 @@ def gestionar_autenticacion():
     except requests.exceptions.RequestException as e:
         print(f"\nError de conexión con el servidor: {e}"); return None
 
-def ver_todas():
+# ▼▼▼ ¡FUNCIÓN MODIFICADA! ▼▼▼
+def ver_cantidad_peliculas():
+    """
+    Obtiene y muestra la cantidad total de películas del servidor.
+    """
     try:
-        response = requests.get(f"{BASE_URL}/movies")
+        response = requests.get(f"{BASE_URL}/movies/count")
         if response.ok:
-            print("\n--- PRIMERAS 10 PELÍCULAS ---")
-            for movie in response.json()[:10]: print(f"- {movie['title']} ({movie['year']})")
-        else: print(f"Error al obtener películas ({response.status_code}).")
-    except requests.exceptions.RequestException as e: print(f"\nError de conexión: {e}")
+            count = response.json().get("total_movies", "desconocido")
+            print(f"\n📊 Total de películas en la base de datos: {count}")
+        else:
+            print(f"Error al obtener la cantidad de películas ({response.status_code}).")
+    except requests.exceptions.RequestException as e:
+        print(f"\nError de conexión: {e}")
 
 def buscar_por_titulo():
+    # ... (código sin cambios)
     title = input("Ingrese el título de la película: ")
     try:
         response = requests.get(f"{BASE_URL}/movies/{title}")
@@ -66,6 +73,7 @@ def buscar_por_titulo():
     except requests.exceptions.RequestException as e: print(f"\nError de conexión: {e}")
 
 def buscar_por_anio():
+    # ... (código sin cambios)
     print("\n--- Buscar películas por año ---")
     year_str = input("Ingrese el año a buscar: ")
     if not year_str.strip(): print("Año no ingresado."); return
@@ -81,6 +89,7 @@ def buscar_por_anio():
         else: print(f"Error en la búsqueda ({response.status_code}).")
     except requests.exceptions.RequestException as e: print(f"\nError de conexión: {e}")
 
+# ... (El resto de funciones: agregar, actualizar, borrar no necesitan cambios) ...
 def agregar_pelicula():
     auth = gestionar_autenticacion()
     if not auth: return
@@ -136,10 +145,11 @@ def borrar_pelicula():
             if response.status_code == 401: global SESION_AUTH; SESION_AUTH = None
     except requests.exceptions.RequestException as e: print(f"\nError de conexión: {e}")
 
+# ▼▼▼ ¡MENÚ MODIFICADO! ▼▼▼
 def menu():
     while True:
         print("\n--- CLIENTE API DE PELÍCULAS ---")
-        print("1. Ver primeras películas")
+        print("1. Ver cantidad total de películas") # <--- Opción cambiada
         print("2. Buscar por título")
         print("3. Buscar por año")
         print("4. Agregar nueva película (auth)")
@@ -147,12 +157,25 @@ def menu():
         print("6. Borrar película (auth)")
         print("0. Salir")
         op = input("Opción: ")
-        actions = {"1": ver_todas, "2": buscar_por_titulo, "3": buscar_por_anio,
-                   "4": agregar_pelicula, "5": actualizar_pelicula_parcial, "6": borrar_pelicula}
-        if op == "0": break
+        
+        # Mapeo de opciones a funciones
+        actions = {
+            "1": ver_cantidad_peliculas, 
+            "2": buscar_por_titulo,
+            "3": buscar_por_anio,
+            "4": agregar_pelicula,
+            "5": actualizar_pelicula_parcial,
+            "6": borrar_pelicula
+        }
+        
+        if op == "0":
+            break
+            
         action = actions.get(op)
-        if action: action()
-        else: print("Opción no válida.")
+        if action:
+            action()
+        else:
+            print("Opción no válida.")
 
 if __name__ == "__main__":
     configurar_servidor()
