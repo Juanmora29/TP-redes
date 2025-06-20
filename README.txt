@@ -13,6 +13,8 @@ Once you are inside the virtual environment, use the following command to instal
 
 To run the server, execute:
 
+"uvicorn main:app --host 0.0.0.0 --port 8000"
+
 `uvicorn main:app --reload` or `python -m uvicorn main:app --reload`
 
 The API will be available at `http://127.0.0.1:8000`.
