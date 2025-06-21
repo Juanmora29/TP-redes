@@ -116,7 +116,7 @@ def initialize_data():
     # Carga el contenido del archivo JSON en la lista en memoria.
     with open(DATA_FILE, "r", encoding="utf-8") as f:
         movies_db = json.load(f)
-    print(f"✅ Datos cargados. {len(movies_db)} películas en memoria.")
+    
     
 def save_data():
     """
